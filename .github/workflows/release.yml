@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TAP_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run tests
+        run: cargo test --lib && cargo test --test test_operators --test test_parser --test test_parser_js --test test_parser_rust --test test_runner --test test_safety --test test_state --test test_lib
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Bump Cargo.toml version on main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          sed -i "s/^version = \".*\"/version = \"${{ steps.version.outputs.version }}\"/" Cargo.toml
+          cargo generate-lockfile
+          git add Cargo.toml Cargo.lock
+          git diff --cached --quiet || git commit -m "bump version to ${{ steps.version.outputs.version }}"
+          git push origin main
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "agent-mutator ${{ github.ref_name }}" \
+            --generate-notes
+
+      - name: Update Homebrew formula
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          curl -sL "https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz" -o release.tar.gz
+          SHA256=$(shasum -a 256 release.tar.gz | awk '{print $1}')
+
+          git clone https://x-access-token:${TAP_TOKEN}@github.com/flimble/homebrew-tap.git tap
+          cd tap
+
+          sed -i "s|url \".*\"|url \"https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz\"|" Formula/agent-mutator.rb
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/agent-mutator.rb
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/agent-mutator.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/agent-mutator.rb
+          git commit -m "agent-mutator ${TAG}" || echo "No changes to commit"
+          git push
