@@ -41,21 +41,21 @@ cargo test --test test_e2e  # e2e tests only (spawns real mutator binary + pytes
 
 ## Releasing
 
-Tag and push:
+Push the validated changes to `main`, then dispatch the release workflow:
 
 ```
-git tag v0.2.0
-git push origin v0.2.0
+gh workflow run release.yml --ref main -f version=0.2.1
 ```
 
-This automatically:
+Choose a new patch version. The workflow automatically:
 
-1. Runs tests
-2. Bumps the version in `Cargo.toml` on main
-3. Creates a GitHub Release with auto-generated notes
-4. Updates the Homebrew formula in `flimble/homebrew-tap`
+1. Bumps `Cargo.toml` and `Cargo.lock` on main.
+2. Runs the build, Clippy, and full test suite.
+3. Commits and tags that validated source, so the binary version matches the tag.
+4. Creates a GitHub Release and updates `flimble/homebrew-tap`.
 
-Do NOT manually edit the version in `Cargo.toml`.
+Do NOT manually edit the version in `Cargo.toml` or move published tags.
+Tag-triggered releases require the tagged Cargo version to match the tag.
 
 ## Development Rules
 

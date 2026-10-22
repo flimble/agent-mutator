@@ -18,3 +18,7 @@ console = "0.15"
 camino = "1"
 fastrand = "2"
 
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+signal-hook = "0.3"

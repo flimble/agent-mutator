@@ -24,4 +24,4 @@ jobs:
       - name: Run unit tests
         run: cargo test --lib
       - name: Run integration tests (non-e2e)
-        run: cargo test --test test_operators --test test_parser --test test_parser_js --test test_parser_rust --test test_runner --test test_safety --test test_state --test test_lib
+        run: cargo test --test test_operators --test test_parser --test test_parser_js --test test_parser_rust --test test_runner --test test_process_cleanup --test test_safety --test test_state --test test_lib

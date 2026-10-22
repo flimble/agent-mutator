@@ -2,6 +2,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
+pub use crate::test_process::{install_signal_handlers, cancellation_signal};
+use crate::test_process::TestProcess;
+
 use crate::copy_tree::{self, CopyResult};
 use crate::mutants::{Mutation, MutantResult, MutantStatus};
 
@@ -125,6 +128,9 @@ pub fn run_mutations(
     let mut results = Vec::with_capacity(mutations.len());
 
     for mutation in mutations {
+        if cancellation_signal() != 0 {
+            break;
+        }
         let mutated = apply_mutation(original_source, mutation);
         let diff = generate_diff(original_source, &mutated);
 
@@ -154,18 +160,22 @@ pub fn run_mutations(
         for arg in extra_args {
             cmd.arg(arg);
         }
-        let child = cmd
+        cmd
             .current_dir(working_dir)
             .env("OBJC_DISABLE_INITIALIZE_FORK_SAFETY", "YES")
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn();
+            .stderr(std::process::Stdio::piped());
+        let child = TestProcess::spawn(&mut cmd);
 
         let status = match child {
             Ok(mut child) => {
                 loop {
+                    if cancellation_signal() != 0 {
+                        break MutantStatus::Unviable;
+                    }
                     match child.try_wait() {
                         Ok(Some(exit_status)) => {
+                            child.terminate();
                             let stderr = child
                                 .stderr
                                 .take()
@@ -190,8 +200,7 @@ pub fn run_mutations(
                         }
                         Ok(None) => {
                             if start.elapsed() > timeout {
-                                let _ = child.kill();
-                                let _ = child.wait();
+                                child.terminate();
                                 break MutantStatus::Timeout;
                             }
                             std::thread::sleep(std::time::Duration::from_millis(10));
@@ -299,6 +308,9 @@ pub fn run_mutations_isolated(
     let mut results = Vec::with_capacity(mutations.len());
 
     for mutation in mutations {
+        if cancellation_signal() != 0 {
+            break;
+        }
         let mutated = apply_mutation(original_source, mutation);
         let diff = generate_diff(original_source, &mutated);
 
@@ -328,18 +340,22 @@ pub fn run_mutations_isolated(
         for arg in extra_args {
             cmd.arg(arg);
         }
-        let child = cmd
+        cmd
             .current_dir(working_dir)
             .env("OBJC_DISABLE_INITIALIZE_FORK_SAFETY", "YES")
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn();
+            .stderr(std::process::Stdio::piped());
+        let child = TestProcess::spawn(&mut cmd);
 
         let status = match child {
             Ok(mut child) => {
                 loop {
+                    if cancellation_signal() != 0 {
+                        break MutantStatus::Unviable;
+                    }
                     match child.try_wait() {
                         Ok(Some(exit_status)) => {
+                            child.terminate();
                             let stderr = child
                                 .stderr
                                 .take()
@@ -364,8 +380,7 @@ pub fn run_mutations_isolated(
                         }
                         Ok(None) => {
                             if start.elapsed() > timeout {
-                                let _ = child.kill();
-                                let _ = child.wait();
+                                child.terminate();
                                 break MutantStatus::Timeout;
                             }
                             std::thread::sleep(std::time::Duration::from_millis(10));

@@ -5,6 +5,7 @@ pub mod parser;
 pub mod parser_js;
 pub mod parser_rust;
 pub mod runner;
+mod test_process;
 pub mod output;
 pub mod safety;
 pub mod state;

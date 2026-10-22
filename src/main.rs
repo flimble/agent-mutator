@@ -251,6 +251,10 @@ fn cmd_run(
             3
         }
         runner::BaselineResult::Ok { duration_ms } => {
+            if let Err(error) = runner::install_signal_handlers() {
+                output::print_error(&format!("Failed to install cancellation handlers: {}", error));
+                return 3;
+            }
             let timeout_ms = (duration_ms as f64 * timeout_mult) as u64 + 2000;
 
             let results = runner::run_mutations_isolated(
@@ -291,6 +295,10 @@ fn run_in_place(
             3
         }
         runner::BaselineResult::Ok { duration_ms } => {
+            if let Err(error) = runner::install_signal_handlers() {
+                output::print_error(&format!("Failed to install cancellation handlers: {}", error));
+                return 3;
+            }
             let timeout_ms = (duration_ms as f64 * timeout_mult) as u64 + 2000;
 
             // In-place: write backup, mutate original, restore after
@@ -320,6 +328,10 @@ fn finalize_results(
     json_mode: bool,
     quiet: bool,
 ) -> i32 {
+    let signal = runner::cancellation_signal();
+    if signal != 0 {
+        return 128 + signal;
+    }
     let survived: Vec<_> = results
         .iter()
         .filter(|r| r.status == mutants::MutantStatus::Survived)
